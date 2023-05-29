@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Image Link Uploader</title>
+  <style>
+    /* CSS styles here */
+    body {
+      background-color: #f4f4f4;
+      font-family: Arial, sans-serif;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .image {
+      width: 300px;
+      height: 200px;
+      object-fit: cover;
+      margin: 10px;
+    }
+
+    .caption {
+      margin-top: 5px;
+    }
+
+    .form-container {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #555;
+    }
+
+    input[type="file"] {
+      margin-bottom: 10px;
+    }
+
+    input[type="submit"],
+    button {
+      background-color: #333;
+      color: #fff;
+      padding: 8px 16px;
+      border: none;
+      cursor: pointer;
+    }
+
+    input[type="submit"]:hover,
+    button:hover {
+      background-color: #555;
+    }
+
+    .button-container {
+      display: flex;
+      justify-content: space-between;
+    }
+
+  </style>
+</head>
+<body>
+  <h1>Image Link Uploader</h1>
+  
+  <div class="form-container">
+    <form id="imageForm" enctype="multipart/form-data">
+      <label for="imageFile">Upload a file:</label>
+      <input type="file" id="imageFile" accept=".txt" required>
+      <div class="button-container">
+        <input type="submit" value="Upload">
+      </div>
+    </form>
+  </div>
+
+  <div id="imageContainer"></div>
+
+  <script>
+    // Add your Clarifai API credentials here
+    const apiKey = '07a6c20b073c442bbfefc67b0c12bfdf';
+
+    var imageLinks = [];
+    var captions = [];
+    var currentIndex = 0;
+
+    function handleImageUpload(event) {
+      event.preventDefault();
+      
+      var fileInput = document.getElementById('imageFile');
+      var file = fileInput.files[0];
+      
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var fileContent = e.target.result;
+        imageLinks = fileContent.split('\n');
+        
+        currentIndex = 0;
+        showCurrentImage();
+      };
+      
+      reader.readAsText(file);
+    }
+    
+    function showCurrentImage() {
+      var imageContainer = document.getElementById('imageContainer');
+      imageContainer.innerHTML = '';
+
+      if (currentIndex >= 0 && currentIndex < imageLinks.length) {
+        var image = document.createElement('img');
+        image.src = imageLinks[currentIndex];
+        image.classList.add('image');
+        imageContainer.appendChild(image);
+
+        var captionLabel = document.createElement('label');
+        captionLabel.textContent = 'Caption: ';
+        var captionInput = document.createElement('input');
+        captionInput.type = 'text';
+        captionInput.value = captions[currentIndex];
+        captionInput.addEventListener('input', function() {
+          captions[currentIndex] = captionInput.value;
+        });
+
+        var captionContainer = document.createElement('div');
+        captionContainer.classList.add('caption');
+        captionContainer.appendChild(captionLabel);
+        captionContainer.appendChild(captionInput);
+        imageContainer.appendChild(captionContainer);
+
+        if (currentIndex !== imageLinks.length - 1) {
+          var nextButton = document.createElement('button');
+          nextButton.innerText = 'Next';
+          nextButton.addEventListener('click', showNextImage);
+
+          var buttonContainer = document.createElement('div');
+          buttonContainer.classList.add('button-container');
+          buttonContainer.appendChild(nextButton);
+
+          imageContainer.appendChild(buttonContainer);
+        } else {
+          var submitButton = document.createElement('button');
+          submitButton.innerText = 'Submit';
+          submitButton.addEventListener('click', submitCaptions);
+
+          var buttonContainer = document.createElement('div');
+          buttonContainer.classList.add('button-container');
+          buttonContainer.appendChild(submitButton);
+
+          imageContainer.appendChild(buttonContainer);
+        }
+      }
+    }
+
+    function showNextImage() {
+      currentIndex++;
+      showCurrentImage();
+    }
+
+    function submitCaptions() {
+      var imageContainer = document.getElementById('imageContainer');
+      imageContainer.innerHTML = '';
+
+      for (var i = 0; i < imageLinks.length; i++) {
+        var image = document.createElement('img');
+        image.src = imageLinks[i];
+        image.classList.add('image');
+        imageContainer.appendChild(image);
+
+        var captionLabel = document.createElement('label');
+        captionLabel.textContent = 'Caption: ' + captions[i];
+
+        var captionContainer = document.createElement('div');
+        captionContainer.classList.add('caption');
+        captionContainer.appendChild(captionLabel);
+        imageContainer.appendChild(captionContainer);
+
+        // Make a prediction request to Clarifai API
+        predictCaption(imageLinks[i], captions[i]);
+      }
+    }
+
+    function predictCaption(imageLink, currentCaption) {
+      var apiUrl = 'https://api.clarifai.com/v2/models/aaa03c23b3724a16a56b629203edc62c/versions/aa9ca48295b37401f8af92ad1af0d91d/outputs';
+      const PAT = '98083cc8061343b9b46dc60868edad07';
+    // Specify the correct user_id/app_id pairings
+    // Since you're making inferences outside your app's scope
+    const USER_ID = '6dybqw880vu4';       
+    const APP_ID = 'my-first-application';
+    // Change these to whatever model and image URL you want to use
+    const MODEL_ID = 'general-image-recognition';
+    const MODEL_VERSION_ID = 'aa7f35c01e0642fda5cf400f543e7c40';    
+      fetch("https://api.clarifai.com/v2/models/" + MODEL_ID + "/versions/" + MODEL_VERSION_ID + "/outputs", {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Key ' + PAT
+        },
+        body: JSON.stringify({
+          "user_app_id": {
+            "user_id": USER_ID,
+            "app_id": APP_ID
+        },
+
+          inputs: [
+            {
+              data: {
+                image: {
+                  url: imageLink
+                }
+              }
+            }
+          ]
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        // Process the prediction response from Clarifai
+        var concepts = data.outputs[0].data.concepts;
+        var predictedCaption = concepts[0].name;
+
+        // Display the predicted caption along with the image
+        var predictedCaptionLabel = document.createElement('label');
+        predictedCaptionLabel.textContent = 'Predicted Caption: ' + predictedCaption;
+
+        var predictedCaptionContainer = document.createElement('div');
+        predictedCaptionContainer.classList.add('caption');
+        predictedCaptionContainer.appendChild(predictedCaptionLabel);
+        imageContainer.appendChild(predictedCaptionContainer);
+      })
+      .catch(error => console.log('Error:', error));
+    }
+
+    var form = document.getElementById('imageForm');
+    form.addEventListener('submit', handleImageUpload);
+  </script>
+</body>
+</html>
